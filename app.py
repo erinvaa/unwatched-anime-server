@@ -2,11 +2,14 @@ import requests
 from datetime import datetime, timedelta
 import json
 from flask import Flask, request
-from database import db
+from database import db, VideoSource, VideoSourceType
+
+DB_PATH = "database.db"
+SQL_PREFIX = 'sqlite:///'
 
 
 class Config(object):
-    SQLALCHEMY_DATABASE_URI = 'sqlite:////database.db'
+    SQLALCHEMY_DATABASE_URI = SQL_PREFIX + DB_PATH
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 
@@ -16,17 +19,18 @@ db.init_app(app)
 
 
 # CONSTANTS - TODO reorganize and rename
-aired_episodes_key = 'anime_aired_episodes' # My own creation
+AIRED_EPISODES_KEY = 'anime_aired_episodes' # My own creation
+SOURCES_KEY = 'sources'
 
-anime_airing_status_key = 'anime_airing_status'
-anime_num_episodes_key = 'anime_num_episodes'
-anime_start_date_key = 'anime_start_date_string'
-anime_id_key = 'anime_id'
+ANIME_AIRING_STATUS_KEY = 'anime_airing_status'
+ANIME_NUM_EPISODES_KEY = 'anime_num_episodes'
+ANIME_START_DATE_KEY = 'anime_start_date_string'
+ANIME_ID_KEY = 'anime_id'
 
-senpai_api_url = 'http://www.senpai.moe/export.php?type=json&src=raw'
+SENPAI_API_URL = 'http://www.senpai.moe/export.php?type=json&src=raw'
 
-mal_id_key = 'MALID'
-air_date_key = 'airdate_u'
+MAL_ID_KEY = 'MALID'
+AIR_DATE_KEY = 'airdate_u'
 
 
 start_time_map = {}
@@ -39,7 +43,7 @@ def initialize():
 
 
 def load_anime_start_times():
-    r = requests.get(senpai_api_url)
+    r = requests.get(SENPAI_API_URL)
 
     # TODO error handling
     if r.status_code != 200:
@@ -48,8 +52,8 @@ def load_anime_start_times():
     data = r.json()
 
     for item in data['items']:
-        mal_id = int(item[mal_id_key])
-        air_date = item[air_date_key]
+        mal_id = int(item[MAL_ID_KEY])
+        air_date = item[AIR_DATE_KEY]
         print("Found start date for anime: " + item['name'])
 
         start_time_map[mal_id] = datetime.utcfromtimestamp(air_date)
@@ -85,8 +89,38 @@ def watching(username):
 
         data = r.json()
         add_aired_episode_count(data)
+        add_video_source(data)
 
         return json.dumps(data), 200, {'ContentType': 'application/json'}
+
+
+@app.route('/api/video-sources', methods=["GET"])
+def sources():
+    if request.method == "GET":
+        types = VideoSourceType.query.all()
+
+        retval = {}
+
+        for host_type in types:
+            retval[host_type.id] = {
+                "name": host_type.name,
+                "icon_url": host_type.icon_url
+            }
+
+        return json.dumps(retval), 200, {'ContentType': 'application/json'}
+
+
+def add_video_source(data):
+    for anime in data:
+        mal_id = anime[ANIME_ID_KEY]
+        sources = {}
+
+        video_sources = VideoSource.query.filter_by(mal_id=mal_id).all()
+
+        for source in video_sources:
+            sources[source.type.id] = source.url
+
+        anime[SOURCES_KEY] = sources
 
 
 def add_aired_episode_count(data):
@@ -94,19 +128,19 @@ def add_aired_episode_count(data):
 
     for anime in data:
         # Currently airing anime. Most of logic is done here.
-        if anime[anime_airing_status_key] == 1:
-            mal_id = anime[anime_id_key]
+        if anime[ANIME_AIRING_STATUS_KEY] == 1:
+            mal_id = anime[ANIME_ID_KEY]
 
             print("Anime: " + str(anime['anime_title']) + " | malId: " + str(mal_id))
 
             start_date = start_time_map[mal_id]
             time_airing = current_time - start_date
-            anime[aired_episodes_key] = int(time_airing.total_seconds() // timedelta(days=7).total_seconds() + 1)
+            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // timedelta(days=7).total_seconds() + 1)
 
         # Completed anime; can just assume all episodes are out
-        if anime[anime_airing_status_key] == 2:
-            anime[aired_episodes_key] = anime[anime_num_episodes_key]
+        if anime[ANIME_AIRING_STATUS_KEY] == 2:
+            anime[AIRED_EPISODES_KEY] = anime[ANIME_NUM_EPISODES_KEY]
 
         # Not yet airing anime; obviously nothing is out yet (probably)
-        if anime[anime_airing_status_key] == 3:
-            anime[aired_episodes_key] = 0
+        if anime[ANIME_AIRING_STATUS_KEY] == 3:
+            anime[AIRED_EPISODES_KEY] = 0
