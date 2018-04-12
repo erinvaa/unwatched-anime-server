@@ -2,8 +2,17 @@ import requests
 from datetime import datetime, timedelta
 import json
 from flask import Flask, request
+from database import db
+
+
+class Config(object):
+    SQLALCHEMY_DATABASE_URI = 'sqlite:////database.db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
 
 app = Flask(__name__)
+app.config.from_object(Config)
+db.init_app(app)
 
 
 # CONSTANTS - TODO reorganize and rename
