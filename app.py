@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, timedelta
 import json
 from flask import Flask, request
-from database import db, VideoSource, VideoSourceType, SkippedEpisodes
+from database import db, VideoSource, VideoSourceType, SkippedEpisodes, CustomVideoSource, User
 
 DB_PATH = "database.db"
 SQL_PREFIX = 'sqlite:///'
@@ -19,7 +19,7 @@ db.init_app(app)
 
 
 # CONSTANTS - TODO reorganize and rename
-AIRED_EPISODES_KEY = 'anime_aired_episodes' # My own creation
+AIRED_EPISODES_KEY = 'anime_aired_episodes'  # My own creation
 SOURCES_KEY = 'sources'
 
 ANIME_AIRING_STATUS_KEY = 'anime_airing_status'
@@ -88,8 +88,9 @@ def watching(username):
             return 400
 
         data = r.json()
+        user = User.query.filter_by(mal_name=username).first()
         add_aired_episode_count(data)
-        add_video_source(data)
+        add_video_source(data, user)
 
         return json.dumps(data), 200, {'ContentType': 'application/json', "Access-Control-Allow-Origin": '*'}
 
@@ -110,7 +111,7 @@ def sources():
         return json.dumps(retval), 200, {'ContentType': 'application/json', "Access-Control-Allow-Origin": '*'}
 
 
-def add_video_source(data):
+def add_video_source(data, user):
     for anime in data:
         mal_id = anime[ANIME_ID_KEY]
         sources = {}
@@ -118,6 +119,11 @@ def add_video_source(data):
         video_sources = VideoSource.query.filter_by(mal_id=mal_id).all()
 
         for source in video_sources:
+            sources[source.type.id] = source.url
+
+        custom_video_sources = CustomVideoSource.query.filter_by(mal_id=mal_id, user=user).all()
+
+        for source in custom_video_sources:
             sources[source.type.id] = source.url
 
         anime[SOURCES_KEY] = sources
