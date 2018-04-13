@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, timedelta
 import json
 from flask import Flask, request
-from database import db, VideoSource, VideoSourceType
+from database import db, VideoSource, VideoSourceType, SkippedEpisodes
 
 DB_PATH = "database.db"
 SQL_PREFIX = 'sqlite:///'
@@ -91,7 +91,7 @@ def watching(username):
         add_aired_episode_count(data)
         add_video_source(data)
 
-        return json.dumps(data), 200, {'ContentType': 'application/json'}
+        return json.dumps(data), 200, {'ContentType': 'application/json', "Access-Control-Allow-Origin": '*'}
 
 
 @app.route('/api/video-sources', methods=["GET"])
@@ -107,7 +107,7 @@ def sources():
                 "icon_url": host_type.icon_url
             }
 
-        return json.dumps(retval), 200, {'ContentType': 'application/json'}
+        return json.dumps(retval), 200, {'ContentType': 'application/json', "Access-Control-Allow-Origin": '*'}
 
 
 def add_video_source(data):
@@ -135,7 +135,11 @@ def add_aired_episode_count(data):
 
             start_date = start_time_map[mal_id]
             time_airing = current_time - start_date
-            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // timedelta(days=7).total_seconds() + 1)
+
+            skipped_episodes = get_skipped_episodes(mal_id)
+
+            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // timedelta(days=7).total_seconds()
+                                            + 1 - skipped_episodes)
 
         # Completed anime; can just assume all episodes are out
         if anime[ANIME_AIRING_STATUS_KEY] == 2:
@@ -144,3 +148,11 @@ def add_aired_episode_count(data):
         # Not yet airing anime; obviously nothing is out yet (probably)
         if anime[ANIME_AIRING_STATUS_KEY] == 3:
             anime[AIRED_EPISODES_KEY] = 0
+
+
+def get_skipped_episodes(mal_id):
+    skipped_episodes_obj = SkippedEpisodes.query.filter_by(mal_id=mal_id).first()
+    if skipped_episodes_obj is None:
+        return 0
+    else:
+        return skipped_episodes_obj.skipped_episodes
