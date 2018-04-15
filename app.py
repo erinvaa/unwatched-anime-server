@@ -17,9 +17,9 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 
-
 # CONSTANTS - TODO reorganize and rename
 AIRED_EPISODES_KEY = 'anime_aired_episodes'  # My own creation
+TIME_UNTIL_NEXT_EPISODE_KEY = 'time_until_next_episode'  # My own creation
 SOURCES_KEY = 'sources'
 
 ANIME_AIRING_STATUS_KEY = 'anime_airing_status'
@@ -31,7 +31,6 @@ SENPAI_API_URL = 'http://www.senpai.moe/export.php?type=json&src=raw'
 
 MAL_ID_KEY = 'MALID'
 AIR_DATE_KEY = 'simulcast_airdate_u'
-
 
 start_time_map = {}
 
@@ -144,16 +143,19 @@ def add_aired_episode_count(data):
 
             skipped_episodes = get_skipped_episodes(mal_id)
 
-            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // timedelta(days=7).total_seconds()
-                                            + 1 - skipped_episodes)
+            week_seconds = timedelta(days=7).total_seconds()
+            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // week_seconds + 1 - skipped_episodes)
+            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = int(week_seconds - time_airing.total_seconds() % week_seconds) * 1000
 
         # Completed anime; can just assume all episodes are out
         if anime[ANIME_AIRING_STATUS_KEY] == 2:
             anime[AIRED_EPISODES_KEY] = anime[ANIME_NUM_EPISODES_KEY]
+            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = None
 
         # Not yet airing anime; obviously nothing is out yet (probably)
         if anime[ANIME_AIRING_STATUS_KEY] == 3:
             anime[AIRED_EPISODES_KEY] = 0
+            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = None
 
 
 def get_skipped_episodes(mal_id):
