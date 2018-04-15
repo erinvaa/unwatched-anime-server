@@ -8,6 +8,7 @@ class Country(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
+    short_code = db.Column(db.String, nullable=True)
 
 
 class VideoSourceType(db.Model):
