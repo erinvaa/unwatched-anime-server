@@ -16,6 +16,7 @@ class VideoSourceType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
     icon_url = db.Column(db.String, nullable=True)
+    domain = db.Column(db.String, nullable=True)
     sources = db.relationship('VideoSource', backref='type', lazy=True)
     custom_sources = db.relationship('CustomVideoSource', backref='type', lazy=True)
 

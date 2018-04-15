@@ -30,7 +30,7 @@ ANIME_ID_KEY = 'anime_id'
 SENPAI_API_URL = 'http://www.senpai.moe/export.php?type=json&src=raw'
 
 MAL_ID_KEY = 'MALID'
-AIR_DATE_KEY = 'airdate_u'
+AIR_DATE_KEY = 'simulcast_airdate_u'
 
 
 start_time_map = {}
