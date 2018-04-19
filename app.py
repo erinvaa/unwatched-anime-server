@@ -1,7 +1,9 @@
-import requests
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+
+import requests
 from flask import Flask, request
+
 from database import db, VideoSource, VideoSourceType, SkippedEpisodes, CustomVideoSource, User
 
 DB_PATH = "database.db"
@@ -19,12 +21,13 @@ db.init_app(app)
 
 # CONSTANTS - TODO reorganize and rename
 AIRED_EPISODES_KEY = 'anime_aired_episodes'  # My own creation
-TIME_UNTIL_NEXT_EPISODE_KEY = 'time_until_next_episode'  # My own creation
+NEXT_EPISODE_TIME_KEY = 'next_episode'  # My own creation
 SOURCES_KEY = 'sources'
 
 ANIME_AIRING_STATUS_KEY = 'anime_airing_status'
 ANIME_NUM_EPISODES_KEY = 'anime_num_episodes'
 ANIME_START_DATE_KEY = 'anime_start_date_string'
+NUMBER_WATCHED_EPISODES = 'num_watched_episodes'
 ANIME_ID_KEY = 'anime_id'
 
 SENPAI_API_URL = 'http://www.senpai.moe/export.php?type=json&src=raw'
@@ -76,7 +79,7 @@ def watching(username):
         mal_url_1 = 'https://myanimelist.net/animelist/'
         mal_url_2 = '/load.json?offset=0&status=1&order=1'
 
-        print("Got request for user watching " + username)
+        print(u"Got request for user watching " + username)
 
         url = mal_url_1 + username + mal_url_2
 
@@ -130,32 +133,39 @@ def add_video_source(data, user):
 
 def add_aired_episode_count(data):
     current_time = datetime.utcnow()
+    unix_now = (current_time - datetime(1970, 1, 1))
 
     for anime in data:
         # Currently airing anime. Most of logic is done here.
         if anime[ANIME_AIRING_STATUS_KEY] == 1:
             mal_id = anime[ANIME_ID_KEY]
 
-            print("Anime: " + str(anime['anime_title']) + " | malId: " + str(mal_id))
+            # print(u"Anime: " + str(anime['anime_title']) + u" | malId: " + str(mal_id))
+
+            if mal_id not in start_time_map:
+                anime[AIRED_EPISODES_KEY] = None
+                anime[NEXT_EPISODE_TIME_KEY] = None
+                return
 
             start_date = start_time_map[mal_id]
             time_airing = current_time - start_date
 
             skipped_episodes = get_skipped_episodes(mal_id)
 
-            week_seconds = timedelta(days=7).total_seconds()
-            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // week_seconds + 1 - skipped_episodes)
-            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = int(week_seconds - time_airing.total_seconds() % week_seconds) * 1000
+            week = timedelta(days=7)
+            anime[AIRED_EPISODES_KEY] = int(time_airing.total_seconds() // week.total_seconds() + 1 - skipped_episodes)
+            seconds_until_next_episode = week.total_seconds() - time_airing.total_seconds() % week.total_seconds()
+            anime[NEXT_EPISODE_TIME_KEY] = int(unix_now.total_seconds() + seconds_until_next_episode)
 
         # Completed anime; can just assume all episodes are out
         if anime[ANIME_AIRING_STATUS_KEY] == 2:
             anime[AIRED_EPISODES_KEY] = anime[ANIME_NUM_EPISODES_KEY]
-            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = None
+            anime[NEXT_EPISODE_TIME_KEY] = None
 
         # Not yet airing anime; obviously nothing is out yet (probably)
         if anime[ANIME_AIRING_STATUS_KEY] == 3:
             anime[AIRED_EPISODES_KEY] = 0
-            anime[TIME_UNTIL_NEXT_EPISODE_KEY] = None
+            anime[NEXT_EPISODE_TIME_KEY] = None
 
 
 def get_skipped_episodes(mal_id):
