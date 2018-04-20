@@ -116,19 +116,19 @@ def sources():
 def add_video_source(data, user):
     for anime in data:
         mal_id = anime[ANIME_ID_KEY]
-        sources = {}
+        anime_sources = {}
 
-        video_sources = VideoSource.query.filter_by(mal_id=mal_id).all()
+        video_sources = VideoSource.query.filter_by(mal_id=mal_id, country_id=user.default_country_id).all()
 
         for source in video_sources:
-            sources[source.type.id] = source.url
+            anime_sources[source.type.id] = source.url
 
         custom_video_sources = CustomVideoSource.query.filter_by(mal_id=mal_id, user=user).all()
 
         for source in custom_video_sources:
-            sources[source.type.id] = source.url
+            anime_sources[source.type.id] = source.url
 
-        anime[SOURCES_KEY] = sources
+        anime[SOURCES_KEY] = anime_sources
 
 
 def add_aired_episode_count(data):
